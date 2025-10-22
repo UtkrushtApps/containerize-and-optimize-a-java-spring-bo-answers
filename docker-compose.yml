@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: videoenc
+      POSTGRES_PASSWORD: supersecretpw
+      POSTGRES_DB: video_queue
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "videoenc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/video_queue
+      SPRING_DATASOURCE_USERNAME: videoenc
+      SPRING_DATASOURCE_PASSWORD: supersecretpw
+      VIDEOENC_THREADPOOL_SIZE: 8             # App can read this for concurrency
+    ports:
+      - "8080:8080"
+    networks:
+      - backend
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1024M
+        reservations:
+          cpus: "1.0"
+          memory: 512M
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  backend:
+    driver: bridge
